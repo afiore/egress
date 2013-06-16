@@ -18,8 +18,8 @@ migrations = sort . mapMaybe toMigration
 toMigration :: FilePath -> Maybe Migration
 toMigration fullpath =
   let
-    path              = snd $ splitFileName fullpath
     regex             = "(^[0-9]+)-.*(up|down)(\\.sql)$"
+    (_, path)         = splitFileName fullpath
     (_ ,_ ,_, groups) = path =~ regex :: (String, String, String, [String])
   in case groups of
     migId:"up":_   -> Just $ buildM migId Up
