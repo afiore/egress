@@ -16,6 +16,7 @@ buildAndRunPlan opts cmd = do
   sv    <- readSchemaVersion db
 
   let migs   = migrations paths
+
   let vFirst = mId $ head migs
   let vLast  = mId $ last migs
 
@@ -30,7 +31,7 @@ buildAndRunPlan opts cmd = do
 
   let plan = migrationPlan (Range from to) migs
 
-  runPlan db (migrationsDir opts) plan
+  runPlan db (migrationsDir opts) to plan
   return ()
 
 main :: IO ()
@@ -41,6 +42,6 @@ main = do
 
   case (cmds, errors) of
     ([], _:_) -> print "an error occured"
-    (_, _)    -> buildAndRunPlan opts cmds
+    (_ , _)    -> buildAndRunPlan opts cmds
 
   return ()

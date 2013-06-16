@@ -64,9 +64,8 @@ runMigration dbh dir (Migration version _ mpath)= do
   _ <- commit dbh
   return ()
 
-runPlan :: IConnection conn => conn -> FilePath -> [Migration] -> IO ()
-runPlan db migDir plan = do
-  let to = mId $ last plan
+runPlan :: IConnection conn => conn -> FilePath -> Int -> [Migration] -> IO ()
+runPlan db migDir to plan = do
   _ <- mapM (runMigration db migDir) plan
   _ <- writeSchemaVersion db to
   return ()
