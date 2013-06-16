@@ -28,6 +28,9 @@ test = do
                        , Migration 11 Up  "011-m.up.sql"
                        , Migration 11 Down "011-m.down.sql"]
 
+    it "does not chop off the path basename if supplied" $ do
+      migrations ["ms/01-m.up.sql"] `shouldBe` [ Migration 1 Up "ms/01-m.up.sql" ]
+
   describe "up" $ do
     it "selects upgrade migrations within the suppied range" $ do
       up (Range 2 11) migrs `shouldBe`  [ Migration 3 Up "03-m.up.sql"

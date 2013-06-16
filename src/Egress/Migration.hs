@@ -3,10 +3,12 @@ module Egress.Migration (
   , migrationPlan
   , up
   , down
+  , previousVersion
 ) where
 
 import Data.Maybe
-import Data.List (sort)
+import Data.List (sort, partition)
+import System.FilePath (splitFileName)
 import Text.Regex.PCRE
 import Egress.TypeDefs
 
@@ -14,8 +16,9 @@ migrations :: [FilePath] -> [Migration]
 migrations = sort . mapMaybe toMigration
 
 toMigration :: FilePath -> Maybe Migration
-toMigration path =
+toMigration fullpath =
   let
+    path              = snd $ splitFileName fullpath
     regex             = "(^[0-9]+)-.*(up|down)(\\.sql)$"
     (_ ,_ ,_, groups) = path =~ regex :: (String, String, String, [String])
   in case groups of
@@ -23,7 +26,7 @@ toMigration path =
     migId:"down":_ -> Just $ buildM migId Down
     _ -> Nothing
   where
-    buildM v updown = Migration (read v :: Int ) updown path
+    buildM v updown = Migration (read v :: Int ) updown fullpath
 
 up :: Range -> [Migration] -> [Migration]
 up (Range from to) = filter isGreater . sort
@@ -36,6 +39,15 @@ down (Range from to) = filter isLower . reverse . sort
   where
     isLower (Migration mid Down _) = mid <= from && mid > to
     isLower _ = False
+
+previousVersion :: Int -> [Migration] -> Int
+previousVersion _ []   = 0
+previousVersion 0 _    = 0
+previousVersion v migs = case partition (< v) mIds of
+                           ([], _) -> 0
+                           (ids, _) -> last ids
+  where
+    mIds = map mId migs
 
 migrationPlan :: Range -> [Migration] -> [Migration]
 migrationPlan r@(Range from to) = case from `compare` to of

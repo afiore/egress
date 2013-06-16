@@ -29,11 +29,11 @@ options = [
              "Target schema version"
 
     , Option "m" ["migration-dir"]
-             (ReqArg (\arg opts -> return opts { dbConnection = arg }) "migrations")
+             (ReqArg (\arg opts -> return opts { dbConnection = arg }) "./migrations-dir")
              "Path to the migrations folder"
 
     , Option "d" ["db-connection"]
-             (ReqArg (\arg opts -> return opts { migrationsDir = arg }) "DB connection")
+             (ReqArg (\arg opts -> return opts { migrationsDir = arg }) "./dbs/example.sqlite3")
              "DB connection string"
 
     , Option "V" ["verbose"]
@@ -52,7 +52,7 @@ options = [
 usage :: IO ()
 usage = do
   prg <- getProgName
-  let header = "Usage: " ++ prg ++ " [options] [up|down]\n\n" ++
+  let header = "Usage: " ++ prg ++ " [options] [up|rollback]\n\n" ++
                "If no upgrade direction is provided, 'up' is implicitly assumed.\n\n" ++
                "Options:"
   hPutStr stderr $ usageInfo header options

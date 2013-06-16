@@ -10,7 +10,6 @@ import Database.HDBC
 import Database.HDBC.Sqlite3
 import Egress.TypeDefs
 import Control.Monad(when,forM)
-import System.FilePath((</>))
 
 schemaTable      :: String
 schemaTable      = "schema_version"
@@ -56,16 +55,16 @@ writeSchemaVersion dbh version = do
   _ <- commit dbh
   return ()
 
-runMigration :: IConnection conn => conn -> FilePath -> Migration -> IO ()
-runMigration dbh dir (Migration version _ mpath)= do
-  query <-readFile $ (</>) dir mpath
+runMigration :: IConnection conn => conn -> Migration -> IO ()
+runMigration dbh (Migration version _ mpath)= do
+  query <-readFile mpath
   _ <- run dbh query []
   _ <- run dbh sqlUpdateVersion [toSql version]
   _ <- commit dbh
   return ()
 
-runPlan :: IConnection conn => conn -> FilePath -> Int -> [Migration] -> IO ()
-runPlan db migDir to plan = do
-  _ <- mapM (runMigration db migDir) plan
+runPlan :: IConnection conn => conn -> Int -> [Migration] -> IO ()
+runPlan db to plan = do
+  _ <- mapM (runMigration db) plan
   _ <- writeSchemaVersion db to
   return ()
