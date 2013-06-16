@@ -2,6 +2,7 @@ module Egress.DB (
     readSchemaVersion
   , writeSchemaVersion
   , runMigration
+  , runPlan
   , connect
 ) where
 
@@ -61,4 +62,11 @@ runMigration dbh dir (Migration version _ mpath)= do
   _ <- run dbh query []
   _ <- run dbh sqlUpdateVersion [toSql version]
   _ <- commit dbh
+  return ()
+
+runPlan :: IConnection conn => conn -> FilePath -> [Migration] -> IO ()
+runPlan db migDir plan = do
+  let to = mId $ last plan
+  _ <- mapM (runMigration db migDir) plan
+  _ <- writeSchemaVersion db to
   return ()

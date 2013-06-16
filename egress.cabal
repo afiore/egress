@@ -17,8 +17,7 @@ cabal-version:       >=1.8
 executable egress
   main-is:           Egress.hs
   hs-source-dirs:    src
-  ghc-options:       -Wall 
-  ---Werror
+  ghc-options:       -Wall -Werror
   -- other-modules:
   build-depends:     base
                      , filepath

@@ -1,7 +1,9 @@
 module Egress.TypeDefs where
 
 data Direction = Up | Down deriving (Show, Eq)
-data Range     = Range Int Int
+
+data Range     = Range Int Int deriving (Show)
+
 data Migration = Migration { mId         :: Int
                            , mDirection  :: Direction
                            , mPath       :: FilePath

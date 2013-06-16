@@ -1,35 +1,46 @@
 import System.IO
 import System.Directory
 import System.Environment
+import System.Console.GetOpt
 import Egress.Migration
 import Egress.TypeDefs
 import Egress.DB
-import Database.HDBC(IConnection)
+import Egress.Options
 
-migrationsDir :: FilePath
-migrationsDir = "migrations"
+type Command = [String]
 
-runPlan :: IConnection conn => conn -> Maybe Int -> Int -> [Migration] -> IO ()
-runPlan _ Nothing _ _ = do
+buildAndRunPlan :: Options -> Command -> IO ()
+buildAndRunPlan opts cmd = do
+  db    <- connect $ dbConnection opts
+  paths <- getDirectoryContents $ migrationsDir opts
+  sv    <- readSchemaVersion db
+
+  let migs   = migrations paths
+  let vFirst = mId $ head migs
+  let vLast  = mId $ last migs
+
+  let from = case sv of
+               Just v -> v
+               _      -> 0
+
+  let to = case (version opts, cmd) of
+               (Just v', _)         -> v'
+               (Nothing, "down":_) ->  vFirst
+               _                   ->  vLast
+
+  let plan = migrationPlan (Range from to) migs
+
+  runPlan db (migrationsDir opts) plan
   return ()
-runPlan db (Just from) to migrs = do
-  let plan = migrationPlan (Range from to) migrs
-  _ <- mapM (runMigration db migrationsDir) plan
-  _ <- writeSchemaVersion db to
-  print plan
-  return ()
-
 
 main :: IO ()
 main = do
-  paths <- getDirectoryContents migrationsDir
-  let ms = migrations paths
-
   args  <- getArgs
-  let to = read (args !! 0) :: Int
+  let (actions, cmds, errors) = getOpt Permute options args
+  opts  <- foldl (>>=) (return defaultOptions) actions
 
-  db    <- connect "example.sqlite3"
-  from  <- readSchemaVersion db
-  _ <- runPlan db from to ms
+  case (cmds, errors) of
+    ([], _:_) -> print "an error occured"
+    (_, _)    -> buildAndRunPlan opts cmds
+
   return ()
-

@@ -11,7 +11,7 @@ import Text.Regex.PCRE
 import Egress.TypeDefs
 
 migrations :: [FilePath] -> [Migration]
-migrations = mapMaybe toMigration
+migrations = sort . mapMaybe toMigration
 
 toMigration :: FilePath -> Maybe Migration
 toMigration path =

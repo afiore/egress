@@ -21,12 +21,12 @@ test = do
     it "excludes files that do not match the expected pattern" $ do
       (migrations fs') `shouldBe` []
 
-    it "correctly parses migration file names" $ do
+    it "correctly parses and sorts migration file names" $ do
       migrs `shouldBe` [ Migration 1 Up   "01-m.up.sql"
                        , Migration 1 Down "01-m.down.sql"
+                       , Migration 3 Up   "03-m.up.sql"
                        , Migration 11 Up  "011-m.up.sql"
-                       , Migration 11 Down "011-m.down.sql"
-                       , Migration 3 Up   "03-m.up.sql"]
+                       , Migration 11 Down "011-m.down.sql"]
 
   describe "up" $ do
     it "selects upgrade migrations within the suppied range" $ do
