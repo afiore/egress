@@ -24,7 +24,7 @@ toMigration fullpath =
   in case groups of
     migId:"up":_   -> Just $ buildM migId Up
     migId:"down":_ -> Just $ buildM migId Down
-    _ -> Nothing
+    _              -> Nothing
   where
     buildM v updown = Migration (read v :: Int ) updown fullpath
 

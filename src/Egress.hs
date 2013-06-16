@@ -3,11 +3,10 @@ import System.Directory
 import System.FilePath((</>))
 import System.Environment
 import System.Console.GetOpt
-import Egress.Migration
 import Egress.TypeDefs
+import Egress.Migration
 import Egress.DB
 import Egress.Options
-
 
 type Command = [String]
 
@@ -21,12 +20,11 @@ buildAndRunPlan migs opts cmd = do
   db <- connect $ dbConnection opts
   sv <- readSchemaVersion db
 
-  let vLast = mId $ last migs
   let from  = fromMaybe 0 sv
   let to    = case (version opts, cmd) of
                 (Just v', _)            -> v'
                 (Nothing, "rollback":_) -> previousVersion from migs
-                _                       -> vLast
+                _                       -> mId $ last migs
 
   runPlan db to $ migrationPlan (Range from to) migs
   return ()
