@@ -11,10 +11,8 @@ import Egress.Options
 type Command = [String]
 
 buildAndRunPlan :: [Migration] -> Options -> Command -> IO ()
-
 buildAndRunPlan [] _ _ = do
   print "No migrations found"
-  return ()
 
 buildAndRunPlan migs opts cmd = do
   db <- connect $ dbConnection opts
@@ -27,7 +25,6 @@ buildAndRunPlan migs opts cmd = do
                 _                       -> mId $ last migs
 
   runPlan db to $ migrationPlan (Range from to) migs
-  return ()
 
 readMigrations :: Options -> IO [Migration]
 readMigrations opts = do
@@ -45,5 +42,3 @@ main = do
   case (cmds, errors) of
     ([], _:_) -> print "an error occured"
     (_ , _)   -> buildAndRunPlan migs opts cmds
-
-  return ()

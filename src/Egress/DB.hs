@@ -65,6 +65,6 @@ runMigration dbh (Migration version _ mpath)= do
 
 runPlan :: IConnection conn => conn -> Int -> [Migration] -> IO ()
 runPlan db to plan = do
-  _ <- mapM (runMigration db) plan
+  mapM_ (runMigration db) plan
   _ <- writeSchemaVersion db to
   return ()
