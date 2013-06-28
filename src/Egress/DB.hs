@@ -68,9 +68,9 @@ runMigration :: Migration -> Egress ()
 runMigration (Migration version _ mpath)= do
   q <- liftIO $ do
     readFile mpath
-  runQuery q [] >> writeSchemaVersion version >> commitDb
+  (runQuery q []) >> writeSchemaVersion version
 
 runPlan :: Int -> [Migration] -> Egress ()
 runPlan v plan = do
-  mapM_ runMigration plan
-  writeSchemaVersion v
+  _ <- mapM_ runMigration plan
+  (writeSchemaVersion v) >> commitDb
