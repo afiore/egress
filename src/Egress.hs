@@ -8,7 +8,6 @@ import Egress.DB
 import Egress.Options
 import Control.Monad.Reader
 
-
 type Command = [String]
 
 buildAndRunPlan :: [Migration] -> Maybe Int -> Command -> Egress ()
