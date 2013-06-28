@@ -1,15 +1,18 @@
 module Egress.DB (
-    readSchemaVersion
+  readSchemaVersion
   , writeSchemaVersion
   , runMigration
   , runPlan
   , connect
+  , Egress
 ) where
 
 import Database.HDBC
 import Database.HDBC.Sqlite3
 import Egress.TypeDefs
-import Control.Monad(when,forM)
+import Control.Monad.Reader
+
+type Egress a = ReaderT Connection IO a
 
 schemaTable      :: String
 schemaTable      = "schema_version"
@@ -40,31 +43,34 @@ prepDB dbh = do
       run dbh q []
     return ()
 
-readSchemaVersion :: IConnection conn => conn -> IO (Maybe Int)
-readSchemaVersion dbh = do
-  stmt <- prepare dbh sqlSelectVersion
-  _    <- execute stmt []
-  row  <- fetchRow stmt
-  return $ case row of
-                Just (version:_) -> Just $ fromSql version
-                _                -> Nothing
+runQuery :: String -> [SqlValue] -> Egress [[SqlValue]]
+runQuery q vs = do
+  conn <- ask
+  liftIO $ quickQuery conn q vs
 
-writeSchemaVersion :: IConnection conn => conn -> Int -> IO ()
-writeSchemaVersion dbh version = do
-  _ <- run dbh sqlUpdateVersion [toSql version]
-  _ <- commit dbh
-  return ()
+readSchemaVersion :: Egress Int
+readSchemaVersion = do
+  results <- runQuery sqlSelectVersion []
+  return $ case results of
+    (version:_):_ -> fromSql version
+    _             -> 0
 
-runMigration :: IConnection conn => conn -> Migration -> IO ()
-runMigration dbh (Migration version _ mpath)= do
-  query <-readFile mpath
-  _ <- run dbh query []
-  _ <- run dbh sqlUpdateVersion [toSql version]
-  _ <- commit dbh
-  return ()
+commitDb :: Egress ()
+commitDb = do
+  conn <- ask
+  liftIO $ commit conn
 
-runPlan :: IConnection conn => conn -> Int -> [Migration] -> IO ()
-runPlan db to plan = do
-  mapM_ (runMigration db) plan
-  _ <- writeSchemaVersion db to
-  return ()
+writeSchemaVersion :: Int -> Egress ()
+writeSchemaVersion v = do
+  (runQuery sqlUpdateVersion $ [toSql v]) >> return ()
+
+runMigration :: Migration -> Egress ()
+runMigration (Migration version _ mpath)= do
+  q <- liftIO $ do
+    readFile mpath
+  runQuery q [] >> writeSchemaVersion version >> commitDb
+
+runPlan :: Int -> [Migration] -> Egress ()
+runPlan v plan = do
+  mapM_ runMigration plan
+  writeSchemaVersion v

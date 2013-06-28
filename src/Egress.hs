@@ -1,4 +1,3 @@
-import Data.Maybe(fromMaybe)
 import System.Directory
 import System.FilePath((</>))
 import System.Environment
@@ -7,24 +6,21 @@ import Egress.TypeDefs
 import Egress.Migration
 import Egress.DB
 import Egress.Options
+import Control.Monad.Reader
+
 
 type Command = [String]
 
-buildAndRunPlan :: [Migration] -> Options -> Command -> IO ()
-buildAndRunPlan [] _ _ = do
-  print "No migrations found"
-
-buildAndRunPlan migs opts cmd = do
-  db <- connect $ dbConnection opts
-  sv <- readSchemaVersion db
-
-  let from  = fromMaybe 0 sv
-  let to    = case (version opts, cmd) of
-                (Just v', _)            -> v'
-                (Nothing, "rollback":_) -> previousVersion from migs
-                _                       -> mId $ last migs
-
-  runPlan db to $ migrationPlan (Range from to) migs
+buildAndRunPlan :: [Migration] -> Maybe Int -> Command -> Egress ()
+buildAndRunPlan [] _ _ = liftIO $ putStrLn "No migrations found"
+buildAndRunPlan migs mVersion cmd = do
+  from <- readSchemaVersion
+  let to   = case (mVersion, cmd) of
+             (Just v', _)            -> v'
+             (Nothing, "rollback":_) -> previousVersion from migs
+             _                       -> mId $ last migs
+  let plan = migrationPlan (Range from to) migs
+  runPlan to plan
 
 readMigrations :: Options -> IO [Migration]
 readMigrations opts = do
@@ -34,11 +30,15 @@ readMigrations opts = do
 
 main :: IO ()
 main = do
-  args  <- getArgs
+  args <- getArgs
   let (actions, cmds, errors) = getOpt Permute options args
-  opts  <- foldl (>>=) (return defaultOptions) actions
-  migs  <- readMigrations opts
+
+  opts <- foldl (>>=) (return defaultOptions) actions
+  migs <- readMigrations opts
+  conn <- connect $ dbConnection opts
+
+  let mVersion = version opts
 
   case (cmds, errors) of
-    ([], _:_) -> print "an error occured"
-    (_ , _)   -> buildAndRunPlan migs opts cmds
+    ([], _:_) -> putStrLn "an error occured"
+    (_ , _)   -> runReaderT (buildAndRunPlan migs mVersion cmds) conn

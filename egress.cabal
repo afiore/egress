@@ -17,9 +17,10 @@ cabal-version:       >=1.8
 executable egress
   main-is:           Egress.hs
   hs-source-dirs:    src
-  ghc-options:       -Wall -Werror
+  ghc-options:       -Wall
   -- other-modules:
   build-depends:     base
+                     , mtl
                      , filepath
                      , directory
                      , regex-pcre-builtin
@@ -33,6 +34,7 @@ test-suite unit
   build-depends:     base
                      , directory
                      , filepath
+                     , mtl
                      , regex-pcre-builtin
                      , hspec
                      , HUnit
