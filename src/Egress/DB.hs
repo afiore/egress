@@ -11,8 +11,10 @@ import Database.HDBC
 import Database.HDBC.Sqlite3
 import Egress.TypeDefs
 import Control.Monad.Reader
+import Control.Exception
 
-type Egress a = ReaderT Connection IO a
+type Egress a  = ReaderT Connection IO a
+type SafeSql a = Either SqlError a
 
 schemaTable      :: String
 schemaTable      = "schema_version"
@@ -29,19 +31,19 @@ sqlSelectVersion = "SELECT version FROM " ++ schemaTable ++ " LIMIT 1"
 sqlUpdateVersion :: String
 sqlUpdateVersion = "UPDATE "++ schemaTable ++ " SET version = ?"
 
-connect :: FilePath -> IO Connection
+connect :: FilePath -> IO (SafeSql Connection)
 connect fp = do
-  dbh <- connectSqlite3 fp
+  dbh <- try $ connectSqlite3 fp
   prepDB dbh
-  return dbh
 
-prepDB :: IConnection conn => conn -> IO ()
-prepDB dbh = do
+prepDB :: IConnection conn => SafeSql conn -> IO (SafeSql conn)
+prepDB err@(Left _) = return err
+prepDB (Right dbh) = do
   tables <- getTables dbh
   when (not (schemaTable `elem` tables)) $ do
-    _ <- forM [sqlCreateTable, sqlInsertVersion] $ \q -> do
+    forM_ [sqlCreateTable, sqlInsertVersion] $ \q -> do
       run dbh q []
-    return ()
+  return $ Right dbh
 
 runQuery :: String -> [SqlValue] -> Egress [[SqlValue]]
 runQuery q vs = do

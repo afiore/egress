@@ -15,9 +15,9 @@ buildAndRunPlan [] _ _ = liftIO $ putStrLn "No migrations found"
 buildAndRunPlan migs mVersion cmd = do
   from <- readSchemaVersion
   let to   = case (mVersion, cmd) of
-             (Just v', _)            -> v'
-             (Nothing, "rollback":_) -> previousVersion from migs
-             _                       -> mId $ last migs
+               (Just v', _)            -> v'
+               (Nothing, "rollback":_) -> previousVersion from migs
+               _                       -> mId $ last migs
   let plan = migrationPlan (Range from to) migs
   runPlan to plan
 
@@ -31,13 +31,15 @@ main :: IO ()
 main = do
   args <- getArgs
   let (actions, cmds, errors) = getOpt Permute options args
-
   opts <- foldl (>>=) (return defaultOptions) actions
+
+  let mVersion = version opts
   migs <- readMigrations opts
   conn <- connect $ dbConnection opts
 
-  let mVersion = version opts
-
-  case (cmds, errors) of
-    ([], _:_) -> putStrLn "an error occured"
-    (_ , _)   -> runReaderT (buildAndRunPlan migs mVersion cmds) conn
+  case conn of
+    (Left _)       -> putStrLn "Cannot connect the database"
+    (Right dbconn) -> do
+                    case (cmds, errors) of
+                      ([], _:_) -> usage
+                      (_ , _)   -> runReaderT (buildAndRunPlan migs mVersion cmds) dbconn

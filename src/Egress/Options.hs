@@ -29,11 +29,11 @@ options = [
              "Target schema version"
 
     , Option "m" ["migration-dir"]
-             (ReqArg (\arg opts -> return opts { dbConnection = arg }) "./migrations-dir")
+             (ReqArg (\arg opts -> return opts { migrationsDir = arg }) "./migrations-dir")
              "Path to the migrations folder"
 
     , Option "d" ["db-connection"]
-             (ReqArg (\arg opts -> return opts { migrationsDir = arg }) "./dbs/example.sqlite3")
+             (ReqArg (\arg opts -> return opts { dbConnection = arg }) "./dbs/example.sqlite3")
              "DB connection string"
 
     , Option "V" ["verbose"]
