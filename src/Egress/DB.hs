@@ -10,10 +10,10 @@ module Egress.DB (
 import Database.HDBC
 import Database.HDBC.Sqlite3
 import Egress.TypeDefs
-import Control.Monad.Reader
+import Control.Monad.State
 import Control.Exception
 
-type Egress a  = ReaderT Connection IO a
+type Egress a  = StateT (EgressState Connection) IO a
 type SafeSql a = Either SqlError a
 
 schemaTable      :: String
@@ -45,10 +45,32 @@ prepDB (Right dbh) = do
       run dbh q []
   return $ Right dbh
 
+getConnection :: Egress Connection
+getConnection = do
+  s <- get
+  return $ connection s
+
+infoMsg :: String -> Egress ()
+infoMsg msg = do
+  modify (\ s -> s { messages = (messages s) ++ [CliInfoMsg msg] })
+
+runQueryM :: Maybe Migration -> String -> [SqlValue] -> Egress [[SqlValue]]
+runQueryM maybeMigr q vs = do
+  conn          <- getConnection
+  eitherResults <- liftIO $ try $ quickQuery conn q vs
+
+  case eitherResults of
+    Left err      -> (errorMsg maybeMigr err) >> return []
+    Right results -> return results
+
 runQuery :: String -> [SqlValue] -> Egress [[SqlValue]]
-runQuery q vs = do
-  conn <- ask
-  liftIO $ quickQuery conn q vs
+runQuery = runQueryM Nothing
+
+errorMsg :: Maybe Migration -> SqlError -> Egress ()
+errorMsg Nothing  err = do
+  modify (\ s -> s { messages = (messages s) ++ [CliInternalErrorMsg $ seErrorMsg err] })
+errorMsg (Just _) err = do
+  modify (\ s -> s { messages = (messages s) ++ [CliErrorMsg $ seErrorMsg err] })
 
 readSchemaVersion :: Egress Int
 readSchemaVersion = do
@@ -59,7 +81,7 @@ readSchemaVersion = do
 
 commitDb :: Egress ()
 commitDb = do
-  conn <- ask
+  conn <- getConnection
   liftIO $ commit conn
 
 writeSchemaVersion :: Int -> Egress ()
@@ -67,10 +89,11 @@ writeSchemaVersion v = do
   (runQuery sqlUpdateVersion $ [toSql v]) >> return ()
 
 runMigration :: Migration -> Egress ()
-runMigration (Migration version _ mpath)= do
+runMigration m@(Migration version _ mpath)= do
   q <- liftIO $ do
     readFile mpath
-  (runQuery q []) >> writeSchemaVersion version
+  let msg = "Executing migration:" ++ mpath
+  (infoMsg msg) >> (runQueryM (Just m) q []) >> writeSchemaVersion version
 
 runPlan :: Int -> [Migration] -> Egress ()
 runPlan v plan = do

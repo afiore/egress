@@ -6,7 +6,7 @@ import Egress.TypeDefs
 import Egress.Migration
 import Egress.DB
 import Egress.Options
-import Control.Monad.Reader
+import Control.Monad.State
 
 type Command = [String]
 
@@ -38,8 +38,10 @@ main = do
   conn <- connect $ dbConnection opts
 
   case conn of
-    (Left _)       -> putStrLn "Cannot connect the database"
+    (Left _)       -> putStrLn "Cannot connect to the database"
     (Right dbconn) -> do
-                    case (cmds, errors) of
-                      ([], _:_) -> usage
-                      (_ , _)   -> runReaderT (buildAndRunPlan migs mVersion cmds) dbconn
+      case (cmds, errors) of
+        ([], _:_) -> mapM_ putStrLn errors
+        (_ , _)   -> do
+                     (_, s) <- runStateT (buildAndRunPlan migs mVersion cmds) $ EgressState dbconn []
+                     mapM_ (putStrLn . show) $ messages s
