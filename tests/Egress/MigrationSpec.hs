@@ -53,3 +53,15 @@ test = do
     it "returns downgrade migrations when a 'downwards' range is supplied" $ do
       migrationPlan (Range 11 3) migrs `shouldBe` [ Migration 11 Down "011-m.down.sql" ]
 
+  describe "previousVersion" $ do
+    context "when no migrations" $ do
+      it "returns zero" $ do
+        previousVersion 10 [] `shouldBe` 0
+    context "when current version is zero" $ do
+      it "returns zero" $ do
+        previousVersion 0 migrs `shouldBe` 0
+    context "when current version is not zero" $ do
+      it "returns the previous version number" $ do
+        previousVersion 11 migrs `shouldBe` 3
+        previousVersion 3 migrs  `shouldBe` 1
+        previousVersion 1 migrs  `shouldBe` 0
