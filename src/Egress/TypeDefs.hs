@@ -18,8 +18,9 @@ isError (CliInfoMsg  _)         = False
 isError (CliErrorMsg _)         = True
 isError (CliInternalErrorMsg _) = True
 
-data EgressState a  = EgressState { connection :: a
-                                  , messages   :: [CliMessage]
+data EgressState a  = EgressState { connection  :: a
+                                  , messages    :: [CliMessage]
+                                  , eMigrations :: [Migration]
                                   } deriving (Show, Eq)
 
 instance Ord Migration where
