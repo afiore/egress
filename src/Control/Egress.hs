@@ -16,7 +16,7 @@ import Egress.DB
 import Egress.TypeDefs
 import Egress.Migration
 
-type Egress a   = StateT (EgressState Connection) IO a
+type Egress a   = StateT EgressState IO a
 type SqlRecords = [[SqlValue]]
 type Command = [String]
 
@@ -71,7 +71,18 @@ runPlan v (mig:rest) = do
     (Left _) -> return ()
     _        -> runPlan v rest
 
-buildAndRunPlan :: Maybe Int -> Command -> Egress ()
+runRollbackPlan :: Egress ()
+runRollbackPlan = do
+  from <- readSchemaVersion
+  migs <- getMigrations
+
+  let to = previousVersion from migs
+  runPlan $ migrationPlan (Range from to)
+
+runUpgradePlan :: Maybe Int -> Egress ()
+runUpgradePlan = undefined
+
+buildAndRunPlan :: Maybe Int -> Egress ()
 buildAndRunPlan mVersion cmd = do
   from <- readSchemaVersion
   migs <- getMigrations

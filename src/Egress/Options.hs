@@ -52,7 +52,6 @@ options = [
 usage :: IO ()
 usage = do
   prg <- getProgName
-  let header = "Usage: " ++ prg ++ " [options] [up|rollback]\n\n" ++
-               "If no command is specified 'up' is implicitly assumed.\n\n" ++
+  let header = "Usage: " ++ prg ++ " [options] [version|up|rollback]\n\n" ++
                "Options:"
   hPutStr stderr $ usageInfo header options
