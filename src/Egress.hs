@@ -13,7 +13,12 @@ import Egress.Options
 import Control.Monad.State
 import Control.Egress
 
-type Command = String
+handleCmd :: String -> Maybe Int -> EgressState -> IO ()
+handleCmd "version"     _        s = evalStateT readSchemaVersion s >>= putStrLn . show
+handleCmd "set-version" (Just v) s = execStateT (setVersion v) s >>= printReport
+handleCmd "up"          Nothing  s = execStateT runUpgradePlan  s >>= printReport
+handleCmd "rollback"    Nothing  s = execStateT runRollbackPlan s >>= printReport
+handleCmd _             _        _ = usage
 
 readMigrations :: Options -> IO [Migration]
 readMigrations opts = do
@@ -22,14 +27,7 @@ readMigrations opts = do
   return $ migrations $ (map ((</>) dir)) fs
 
 printReport :: EgressState -> IO ()
-printReport s = mapM_ putStrLn $ map show $ messages s
-
-handleCmd :: Command -> Maybe Int -> EgressState -> IO ()
-handleCmd "version"     _        s = evalStateT readSchemaVersion s >>= putStrLn . show
-handleCmd "set-version" (Just v) s = execStateT (setVersion v) s >>= printReport
-handleCmd "up"          Nothing  s = execStateT runUpgradePlan  s >>= printReport
-handleCmd "rollback"    Nothing  s = execStateT runRollbackPlan s >>= printReport
-handleCmd _             _        _ = usage
+printReport s = mapM_ (putStrLn . show) $ messages s
 
 main :: IO ()
 main = do
@@ -38,12 +36,12 @@ main = do
   opts <- foldl (>>=) (return defaultOptions) actions
 
   let mVersion  = version opts
-  
+
   migs <- readMigrations opts
   conn <- connect $ dbConnection opts 
 
   case conn of
-    (Left _)       -> (putStderr "Cannot connect to the database.") >> die
+    (Left _)       -> die "Cannot connect to the database."
     (Right dbconn) -> do
       let s = EgressState dbconn [] migs
           handleCmd' c = handleCmd c mVersion s
@@ -54,5 +52,4 @@ main = do
         _          -> handleCmd' "usage"
   where
     putStderr = hPutStr stderr
-    die       = exitWith $ ExitFailure 1
-
+    die msg   = putStderr msg >> exitWith (ExitFailure 1)
