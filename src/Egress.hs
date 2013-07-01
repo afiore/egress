@@ -22,12 +22,14 @@ readMigrations opts = do
   return $ migrations $ (map ((</>) dir)) fs
 
 printReport :: EgressState -> IO ()
-printReport = mapM_ (putStrLn . show . messages)
+printReport s = mapM_ putStrLn $ map show $ messages s
 
 handleCmd :: Command -> Maybe Int -> EgressState -> IO ()
-handleCmd "version"  _       s = evalStateT readSchemaVersion s >>= putStrLn . show
-handleCmd "rollback" Nothing s = execStateT 
-handleCmd _ _ _                = usage
+handleCmd "version"     _        s = evalStateT readSchemaVersion s >>= putStrLn . show
+handleCmd "set-version" (Just v) s = execStateT (setVersion v) s >>= printReport
+handleCmd "up"          Nothing  s = execStateT runUpgradePlan  s >>= printReport
+handleCmd "rollback"    Nothing  s = execStateT runRollbackPlan s >>= printReport
+handleCmd _             _        _ = usage
 
 main :: IO ()
 main = do
@@ -35,7 +37,8 @@ main = do
   let (actions, cmds, errors) = getOpt Permute options args
   opts <- foldl (>>=) (return defaultOptions) actions
 
-  let mVersion = version opts
+  let mVersion  = version opts
+  
   migs <- readMigrations opts
   conn <- connect $ dbConnection opts 
 
@@ -43,12 +46,13 @@ main = do
     (Left _)       -> (putStderr "Cannot connect to the database.") >> die
     (Right dbconn) -> do
       let s = EgressState dbconn [] migs
+          handleCmd' c = handleCmd c mVersion s
 
       case (cmds, errors) of
         ([], _:_)  -> mapM_ putStderr errors
         (cmd:_, _) -> handleCmd' cmd
         _          -> handleCmd' "usage"
-      where
-        putStderr    = hPutStr stderr
-        die          = exitWith $ ExitFailure 1
-        handleCmd' c = handleCmd c mVersion s
+  where
+    putStderr = hPutStr stderr
+    die       = exitWith $ ExitFailure 1
+

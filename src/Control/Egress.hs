@@ -2,7 +2,9 @@ module Control.Egress (
   readSchemaVersion
   , writeSchemaVersion
   , runMigration
-  , buildAndRunPlan
+  , runUpgradePlan
+  , runRollbackPlan
+  , setVersion
   , Egress
 ) where
 
@@ -18,7 +20,6 @@ import Egress.Migration
 
 type Egress a   = StateT EgressState IO a
 type SqlRecords = [[SqlValue]]
-type Command = [String]
 
 getConnection :: Egress Connection
 getConnection = get >>= return . connection
@@ -63,13 +64,26 @@ runMigration m@(Migration _ _ mpath) = do
     err@(Left e)  -> (logMigrationFail m e) >> return err
     res@(Right _) -> (logMigrationRun m) >> (writeSchemaVersion m) >> return res
 
-runPlan :: Int -> [Migration] -> Egress ()
-runPlan _ []         = return ()
-runPlan v (mig:rest) = do
+runPlan :: [Migration] -> Egress ()
+runPlan []         = return ()
+runPlan (mig:rest) = do
   result <- runMigration mig
   case result of
     (Left _) -> return ()
-    _        -> runPlan v rest
+    _        -> runPlan rest
+
+buildAndRunPlan :: Int -> Int -> Egress ()
+buildAndRunPlan from to = do
+  migs <- getMigrations
+  let range = (Range from to)
+      plan  = migrationPlan range migs
+  runPlan plan
+
+setVersion :: Int -> Egress ()
+setVersion to = do
+  from <- readSchemaVersion
+
+  buildAndRunPlan from to
 
 runRollbackPlan :: Egress ()
 runRollbackPlan = do
@@ -77,22 +91,15 @@ runRollbackPlan = do
   migs <- getMigrations
 
   let to = previousVersion from migs
-  runPlan $ migrationPlan (Range from to)
+  buildAndRunPlan from to
 
-runUpgradePlan :: Maybe Int -> Egress ()
-runUpgradePlan = undefined
-
-buildAndRunPlan :: Maybe Int -> Egress ()
-buildAndRunPlan mVersion cmd = do
+runUpgradePlan :: Egress ()
+runUpgradePlan = do
   from <- readSchemaVersion
   migs <- getMigrations
 
-  let to   = case (mVersion, cmd) of
-               (Just v', _)            -> v'
-               (Nothing, "rollback":_) -> previousVersion from migs
-               _                       -> mId $ last migs
-  let plan = migrationPlan (Range from to) migs
-  runPlan to plan
+  let to = mId $ last migs
+  buildAndRunPlan from to
 
 logMigrationRun :: Migration -> Egress ()
 logMigrationRun (Migration _ _ mpath) = do
