@@ -1,5 +1,8 @@
-module Egress.Migration (
-    migrations
+module Egress.Migration 
+  ( Range(..)
+  , Migration(..)
+  , Direction(..)
+  , migrations
   , migrationPlan
   , up
   , down
@@ -10,7 +13,20 @@ import Data.Maybe
 import Data.List (sort, partition)
 import System.FilePath (splitFileName)
 import Text.Regex.PCRE
-import Egress.TypeDefs
+
+data Direction  = Up 
+                | Down deriving (Show, Eq)
+
+data Range      = Range Int Int deriving (Show)
+
+data Migration  = Migration
+  { mId         :: Int
+  , mDirection  :: Direction
+  , mPath       :: FilePath
+  } deriving (Show, Eq)
+
+instance Ord Migration where
+  compare x y = mId x `compare` mId y
 
 migrations :: [FilePath] -> [Migration]
 migrations = sort . mapMaybe toMigration

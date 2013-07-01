@@ -3,7 +3,6 @@ module Egress.MigrationSpec (
   ) where
 
 import Test.Hspec
-import Egress.TypeDefs
 import Egress.Migration
 
 test = do

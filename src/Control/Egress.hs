@@ -1,11 +1,13 @@
 module Control.Egress (
-  readSchemaVersion
+  Egress
+  , EgressState(..)
+  , CliMessage(..)
+  , readSchemaVersion
   , writeSchemaVersion
   , runMigration
   , runUpgradePlan
   , runRollbackPlan
   , setVersion
-  , Egress
 ) where
 
 import Control.Monad.State
@@ -15,8 +17,23 @@ import Database.HDBC
 import Database.HDBC.Sqlite3
 
 import Egress.DB
-import Egress.TypeDefs
 import Egress.Migration
+
+data CliMessage = SuccessfulRunMessage Migration
+                | FailedRunMessage Migration SqlError
+                deriving (Eq)
+
+instance Show CliMessage where
+  show (SuccessfulRunMessage (Migration _ _ path))                = do
+    "✔ "++ "Successfully run " ++ path
+  show (FailedRunMessage (Migration _ _ path) (SqlError _ _ msg)) = do
+    "✗ " ++ "Error encountered while running "++ path ++ "\n" ++ msg
+
+data EgressState = EgressState 
+  { connection  :: Connection
+  , messages    :: [CliMessage]
+  , eMigrations :: [Migration]
+  }
 
 type Egress a   = StateT EgressState IO a
 type SqlRecords = [[SqlValue]]
@@ -82,7 +99,6 @@ buildAndRunPlan from to = do
 setVersion :: Int -> Egress ()
 setVersion to = do
   from <- readSchemaVersion
-
   buildAndRunPlan from to
 
 runRollbackPlan :: Egress ()
@@ -101,15 +117,14 @@ runUpgradePlan = do
   let to = mId $ last migs
   buildAndRunPlan from to
 
+appendMessage :: Migration -> Maybe SqlError -> EgressState -> EgressState
+appendMessage m Nothing  s = s { messages = (messages s) ++ [SuccessfulRunMessage m] }
+appendMessage m (Just e) s = s { messages = (messages s) ++ [FailedRunMessage m e] }
+
 logMigrationRun :: Migration -> Egress ()
-logMigrationRun (Migration _ _ mpath) = do
-  modify (\ s -> s { messages = (messages s) ++ [CliInfoMsg $ "Successfully run migration: " ++ mpath] })
+logMigrationRun m = do
+  modify (appendMessage m Nothing)
 
 logMigrationFail :: Migration -> SqlError -> Egress ()
-logMigrationFail (Migration _ _ mpath) err = do
-  modify (\ s -> do
-    let msg = "An error occurred while running migration: " ++ mpath ++ "\n" ++ seErrorMsg err
-    s { messages = (messages s) ++ [CliErrorMsg $ msg] })
-
---logMsg :: String -> Egress ()
---logMsg msg = modify (\ s -> s { messages = (messages s) ++ [CliInfoMsg $ msg ] })
+logMigrationFail m err = do
+  modify (appendMessage m (Just err))

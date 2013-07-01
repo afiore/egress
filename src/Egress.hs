@@ -3,12 +3,11 @@ import System.FilePath((</>))
 import System.Environment
 import System.Console.GetOpt
 import System.IO
-import System.Exit
 
-import Egress.TypeDefs
 import Egress.Migration
 import Egress.DB
 import Egress.Options
+import Egress.Report
 
 import Control.Monad.State
 import Control.Egress
@@ -25,9 +24,6 @@ readMigrations opts = do
   let dir = migrationsDir opts
   fs <- getDirectoryContents dir
   return $ migrations $ (map ((</>) dir)) fs
-
-printReport :: EgressState -> IO ()
-printReport s = mapM_ (putStrLn . show) $ messages s
 
 main :: IO ()
 main = do
@@ -52,4 +48,3 @@ main = do
         _          -> handleCmd' "usage"
   where
     putStderr = hPutStr stderr
-    die msg   = putStderr msg >> exitWith (ExitFailure 1)
