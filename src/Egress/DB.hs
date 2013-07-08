@@ -1,18 +1,27 @@
 module Egress.DB (
-  connect
+  connectPostgres
+  , connectSqlite
   , sqlCreateTable
   , sqlInsertVersion
   , sqlSelectVersion
   , sqlUpdateVersion
   , SafeSql
+  , DbAdapter(..)
 ) where
 
-import Database.HDBC
-import Database.HDBC.Sqlite3
-import Control.Monad.State
-import Control.Exception
+import           Database.HDBC
+import qualified Database.HDBC.Sqlite3    as Sqlite
+import qualified Database.HDBC.PostgreSQL as Postgres
+
+import           Control.Monad.State
+import           Control.Exception
 
 type SafeSql a = Either SqlError a
+
+data DbAdapter = Sqlite3
+               | Postgres
+  deriving (Show, Read, Eq)
+
 
 schemaTable      :: String
 schemaTable      = "schema_version"
@@ -29,12 +38,17 @@ sqlSelectVersion = "SELECT version FROM " ++ schemaTable ++ " LIMIT 1"
 sqlUpdateVersion :: String
 sqlUpdateVersion = "UPDATE "++ schemaTable ++ " SET version = ?"
 
-connect :: FilePath -> IO (SafeSql Connection)
-connect fp = do
-  dbh <- try $ connectSqlite3 fp
+connectPostgres :: FilePath -> IO (SafeSql Postgres.Connection)
+connectPostgres fp = do
+  dbh <- try $ Postgres.connectPostgreSQL fp
   prepDB dbh
 
-prepDB :: IConnection conn => SafeSql conn -> IO (SafeSql conn)
+connectSqlite :: FilePath -> IO (SafeSql Sqlite.Connection)
+connectSqlite fp = do
+  dbh <- try $ Sqlite.connectSqlite3 fp
+  prepDB dbh
+
+prepDB :: IConnection c => SafeSql c -> IO (SafeSql c)
 prepDB e@(Left _) = return e
 prepDB (Right conn) = do
   tables <- getTables conn
@@ -43,5 +57,5 @@ prepDB (Right conn) = do
     mapM_ (executeQuery conn) [sqlCreateTable, sqlInsertVersion]
   return $ Right conn
 
-executeQuery :: IConnection conn => conn -> String -> IO Integer
+executeQuery :: IConnection c => c -> String -> IO Integer
 executeQuery dbh q = run dbh q []

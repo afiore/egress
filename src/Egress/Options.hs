@@ -5,12 +5,15 @@ import System.Exit
 import System.Environment
 import System.Console.GetOpt
 
+import Egress.DB (DbAdapter(..))
+
 data Options = Options {
   verbose         :: Bool
   , silent        :: Bool
   , version       :: Maybe Int
   , dbConnection  :: String
   , migrationsDir :: String
+  , dbAdapter     :: DbAdapter
 } deriving (Show)
 
 defaultOptions :: Options
@@ -20,6 +23,7 @@ defaultOptions = Options {
   , version       = Nothing
   , dbConnection  = "example.sqlite3"
   , migrationsDir = "migrations"
+  , dbAdapter     = Sqlite3
 }
 
 options :: [OptDescr (Options -> IO Options)]
@@ -35,6 +39,10 @@ options = [
     , Option "d" ["db-connection"]
              (ReqArg (\arg opts -> return opts { dbConnection = arg }) "./dbs/example.sqlite3")
              "DB connection string"
+
+    , Option "D" ["driver"]
+             (ReqArg (\arg opts -> return opts { dbAdapter = read arg :: DbAdapter }) "Sqlite3")
+             "HDBC Adapter"
 
     , Option "V" ["verbose"]
              (NoArg (\opts -> return opts { verbose = True, silent = False }))

@@ -4,6 +4,8 @@ import System.Environment
 import System.Console.GetOpt
 import System.IO
 
+import Database.HDBC (IConnection)
+
 import Egress.Migration
 import Egress.DB
 import Egress.Options
@@ -12,7 +14,7 @@ import Egress.Report
 import Control.Monad.State
 import Control.Egress
 
-handleCmd :: String -> Maybe Int -> EgressState -> IO ()
+handleCmd :: IConnection c => String -> Maybe Int -> EgressState c -> IO ()
 handleCmd "version"     _        s = evalStateT readSchemaVersion s >>= putStrLn . show
 handleCmd "set-version" (Just v) s = execStateT (setVersion v) s >>= printReport
 handleCmd "up"          Nothing  s = execStateT runUpgradePlan  s >>= printReport
@@ -30,11 +32,15 @@ main = do
   args <- getArgs
   let (actions, cmds, errors) = getOpt Permute options args
   opts <- foldl (>>=) (return defaultOptions) actions
-
   let mVersion  = version opts
+  let adapter   = dbAdapter opts
+  let conStr    = dbConnection opts
 
   migs <- readMigrations opts
-  conn <- connect $ dbConnection opts 
+  --conn <- if adapter == Postgres
+  --        then connectPostgres conStr
+  --        else connectSqlite conStr
+  conn <- connectPostgres conStr
 
   case conn of
     (Left _)       -> die "Cannot connect to the database."
