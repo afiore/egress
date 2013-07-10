@@ -28,30 +28,34 @@ instance Show CliMessage where
   show (FailedRunMessage (Migration _ _ path) (SqlError _ _ msg)) = do
     "✗ " ++ "Error encountered while running "++ path ++ "\n" ++ msg
 
-data EgressState a = EgressState 
-  { connection  :: a
+data EgressState = EgressState
+  { connection  :: DbAdapter
   , messages    :: [CliMessage]
   , eMigrations :: [Migration]
   }
 
-type Egress a b = StateT (EgressState a) IO b
+type Egress a   = StateT EgressState IO a
 type SqlRecords = [[SqlValue]]
 
-getConnection :: IConnection c => Egress c c
-getConnection = get >>= return . connection
+getConnection :: IConnection c => Egress c
+getConnection = do
+  s <- get
+  return $ case connection s of
+             (SqliteAdapter conn)   -> conn
+             (PostgresAdapter conn) -> conn
 
-getMigrations :: IConnection c => Egress c [Migration]
+getMigrations :: Egress [Migration]
 getMigrations = get >>= return . eMigrations
 
-commitDb :: IConnection c => Egress c ()
+commitDb :: Egress ()
 commitDb = getConnection >>= liftIO . commit >> return ()
 
-runQuery :: IConnection c => String -> [SqlValue] -> Egress c (SafeSql SqlRecords)
+runQuery :: String -> [SqlValue] -> Egress (SafeSql SqlRecords)
 runQuery q vs = do
   let quickQ = (\ conn -> quickQuery conn q vs)
   getConnection >>= liftIO . try . quickQ
 
-writeSchemaVersion :: IConnection c => Migration -> Egress c ()
+writeSchemaVersion :: Migration -> Egress ()
 writeSchemaVersion (Migration v Down _) = do
   migs <- getMigrations
   let v' = previousVersion v migs
@@ -59,11 +63,11 @@ writeSchemaVersion (Migration v Down _) = do
 writeSchemaVersion (Migration v Up _)   = do
   writeSchemaVersion' v
 
-writeSchemaVersion' :: IConnection c => Int -> Egress c ()
+writeSchemaVersion' :: Int -> Egress ()
 writeSchemaVersion' v = do
   (runQuery sqlUpdateVersion $ [toSql v]) >> commitDb
 
-readSchemaVersion :: IConnection c => Egress c Int
+readSchemaVersion :: Egress Int
 readSchemaVersion = do
   eitherResults <- runQuery sqlSelectVersion []
   return $ case eitherResults of
@@ -72,7 +76,7 @@ readSchemaVersion = do
                        (version:_):_ -> fromSql version
                        _             -> 0
 
-runMigration :: IConnection c => Migration -> Egress c (SafeSql SqlRecords)
+runMigration :: Migration -> Egress (SafeSql SqlRecords)
 runMigration m@(Migration _ _ mpath) = do
   q         <- liftIO $ readFile mpath
   eitherRes <- runQuery q []
@@ -80,7 +84,7 @@ runMigration m@(Migration _ _ mpath) = do
     err@(Left e)  -> (logMigrationFail m e) >> return err
     res@(Right _) -> (logMigrationRun m) >> (writeSchemaVersion m) >> return res
 
-runPlan :: IConnection c => [Migration] -> Egress c ()
+runPlan :: [Migration] -> Egress ()
 runPlan []         = return ()
 runPlan (mig:rest) = do
   result <- runMigration mig
@@ -88,19 +92,19 @@ runPlan (mig:rest) = do
     (Left _) -> return ()
     _        -> runPlan rest
 
-buildAndRunPlan :: IConnection c => Int -> Int -> Egress c ()
+buildAndRunPlan :: Int -> Int -> Egress ()
 buildAndRunPlan from to = do
   migs <- getMigrations
   let range = (Range from to)
       plan  = migrationPlan range migs
   runPlan plan
 
-setVersion :: IConnection c => Int -> Egress c ()
+setVersion :: Int -> Egress ()
 setVersion to = do
   from <- readSchemaVersion
   buildAndRunPlan from to
 
-runRollbackPlan :: IConnection c => Egress c ()
+runRollbackPlan :: Egress ()
 runRollbackPlan = do
   from <- readSchemaVersion
   migs <- getMigrations
@@ -108,7 +112,7 @@ runRollbackPlan = do
   let to = previousVersion from migs
   buildAndRunPlan from to
 
-runUpgradePlan :: IConnection c => Egress c ()
+runUpgradePlan :: Egress ()
 runUpgradePlan = do
   from <- readSchemaVersion
   migs <- getMigrations
@@ -116,14 +120,14 @@ runUpgradePlan = do
   let to = mId $ last migs
   buildAndRunPlan from to
 
-appendMessage :: IConnection c => Migration -> Maybe SqlError -> EgressState c -> EgressState c
+appendMessage :: Migration -> Maybe SqlError -> EgressState -> EgressState
 appendMessage m Nothing  s = s { messages = (messages s) ++ [SuccessfulRunMessage m] }
 appendMessage m (Just e) s = s { messages = (messages s) ++ [FailedRunMessage m e] }
 
-logMigrationRun :: IConnection c => Migration -> Egress c ()
+logMigrationRun :: Migration -> Egress ()
 logMigrationRun m = do
   modify (appendMessage m Nothing)
 
-logMigrationFail :: IConnection c => Migration -> SqlError -> Egress c ()
+logMigrationFail :: Migration -> SqlError -> Egress ()
 logMigrationFail m err = do
   modify (appendMessage m (Just err))
