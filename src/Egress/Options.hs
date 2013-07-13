@@ -1,5 +1,8 @@
 module Egress.Options where
 
+import Data.Char (toLower)
+import Data.List (isPrefixOf)
+
 import System.IO
 import System.Exit
 import System.Environment
@@ -41,7 +44,7 @@ options = [
              "DB connection string"
 
     , Option "D" ["driver"]
-             (ReqArg (\arg opts -> return opts { dbAdapter = read arg }) "sqlite")
+             (ReqArg (\arg opts -> handleAdapterOpt arg opts) "sqlite|postgres")
              "HDBC Adapter (i.e. sqlite, postgres)"
 
     , Option "V" ["verbose"]
@@ -56,6 +59,14 @@ options = [
              (NoArg (\_ -> usage >> exitWith ExitSuccess))
              "Show help"
   ]
+
+handleAdapterOpt :: String -> Options -> IO Options
+handleAdapterOpt arg opts 
+  | map toLower arg `isPrefixOf` "postgres" = return opts { dbAdapter = DbPostgres }
+  | map toLower arg `isPrefixOf` "sqlite3"  = return opts { dbAdapter = DbSqlite   }
+  | otherwise = do
+      hPutStr stderr "The 'driver' option -d must be set to either 'postgres' or 'sqlite'"
+      exitFailure
 
 usage :: IO ()
 usage = do

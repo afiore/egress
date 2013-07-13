@@ -23,7 +23,7 @@ type SafeSql a = Either SqlError a
 data DbAdapterName    = DbSqlite | DbPostgres deriving (Show, Eq)
 
 instance Read DbAdapterName where
-  readsPrec _ s | "sqlite"   `isPrefixOf` s = [(DbSqlite, drop 5 s)]
+  readsPrec _ s | "sqlite"   `isPrefixOf` s = [(DbSqlite, drop 6 s)]
                 | "postgres" `isPrefixOf` s = [(DbPostgres, drop 8 s)]
                 | otherwise                 = []
 
@@ -45,11 +45,11 @@ sqlSelectVersion = "SELECT version FROM " ++ schemaTable ++ " LIMIT 1"
 sqlUpdateVersion :: String
 sqlUpdateVersion = "UPDATE "++ schemaTable ++ " SET version = ?"
 
-connect :: String -> FilePath -> IO (SafeSql DbAdapter)
-connect "postgres" dbPath = do
+connect :: DbAdapterName -> FilePath -> IO (SafeSql DbAdapter)
+connect DbPostgres dbPath = do
   dbh  <- try $ PostgresAdapter `liftM` (Postgres.connectPostgreSQL dbPath)
   prepDB dbh
-connect _ dbPath = do
+connect DbSqlite dbPath   = do
   dbh  <- try $ SqliteAdapter `liftM` (Sqlite.connectSqlite3 dbPath)
   prepDB dbh
 

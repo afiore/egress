@@ -37,23 +37,30 @@ data EgressState = EgressState
 type Egress a   = StateT EgressState IO a
 type SqlRecords = [[SqlValue]]
 
-getConnection :: IConnection c => Egress c
+getConnection :: Egress DbAdapter
 getConnection = do
   s <- get
-  return $ case connection s of
-             (SqliteAdapter conn)   -> conn
-             (PostgresAdapter conn) -> conn
+  return $ connection s
 
 getMigrations :: Egress [Migration]
 getMigrations = get >>= return . eMigrations
 
 commitDb :: Egress ()
-commitDb = getConnection >>= liftIO . commit >> return ()
+commitDb = do
+  adapter <- getConnection
+  liftIO $ case adapter of
+    SqliteAdapter   conn -> commit conn
+    PostgresAdapter conn -> commit conn
 
 runQuery :: String -> [SqlValue] -> Egress (SafeSql SqlRecords)
 runQuery q vs = do
-  let quickQ = (\ conn -> quickQuery conn q vs)
-  getConnection >>= liftIO . try . quickQ
+  adapter <- getConnection
+  liftIO $ case adapter of
+    SqliteAdapter   conn -> quickQ conn
+    PostgresAdapter conn -> quickQ conn
+  where
+    quickQ :: IConnection c => c -> IO (SafeSql SqlRecords)
+    quickQ = (\ conn -> try $ quickQuery conn q vs)
 
 writeSchemaVersion :: Migration -> Egress ()
 writeSchemaVersion (Migration v Down _) = do

@@ -6,8 +6,6 @@ module Egress.Report
 import Control.Egress
 import Control.Monad (when)
 
-import Database.HDBC (IConnection)
-
 import System.IO
 import System.Exit
 
@@ -15,7 +13,7 @@ isError :: CliMessage -> Bool
 isError (SuccessfulRunMessage _) = False
 isError (FailedRunMessage   _ _) = True
 
-printReport :: IConnection c => EgressState c -> IO ()
+printReport :: EgressState -> IO ()
 printReport (EgressState _ msgs _) = do
   mapM_ (putStrLn . show) msgs
   when (any isError msgs) $ exitWith (ExitFailure 1)
