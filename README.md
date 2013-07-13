@@ -7,7 +7,7 @@ Currently supports only PostgreSQL and Sqlite (via HDBC).
 
 ## Installation
 
-    git clone git@github.com:afiore/egress.git
+    git clone git@github.com:afiore/egress.git && cd egress
     cabal clean && cabal configure && cabal install
 
 The program executable will be placed in `dist/build/egress`
